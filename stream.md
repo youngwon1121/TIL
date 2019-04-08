@@ -12,7 +12,7 @@ Node JS를 그저 도큐멘트에서 쓰여진 예제를 수정하는 정도로 
 
 아래 코드는 readable스트림을 직접 이벤트와 함께 사용한 코드이다.
 data이벤트를 통해 계속 들어오는 스트림을 받을 수 있다.
-```
+```javascript
 readable.on('data', chunk => {
     writable.write(chunk)
 })
@@ -24,7 +24,7 @@ readable.on('end', () => {
 위에서 request는 객체는 ReadableStream이라고 했다.
 이 부분을 request객체에 적용시킨 코드가 Nodejs 공식문서의 body를 parse하는 부분이다.
 
-```
+```javascript
 let body = [];
 request.on('data', chunk => {
     body.push(chunk);
@@ -37,7 +37,7 @@ request.on('data', chunk => {
 response객체는 WritableStream이라고 했다.
 
 먼저 WritableStream의 기본적인 형태를 한번보자
-```
+```javascript
 const { Writable } = require('stream')
 
 const outStream = new Writable({
@@ -50,7 +50,7 @@ process.stdin.pipe(outStream)
 outStream객체를 Writable생성자를 통해 만들면서 process.stdin을 통해 전달된 청크를 단순히 에코하는 write함수를 작성했다. write를 수정하면 stdin을 통해 들어온 청크를 가공할 수 있다.
 
 response객체는 스트림 메서드인 write를 통해 아래와 같이 작성 할 수 있다.
-```
+```javascript
 response.write('<html>');
 response.write('<body>');
 response.write('<h1>Hello, World!</h1>');
@@ -60,7 +60,7 @@ response.end();
 ```
 
 위 내용을 기반으로 단순 에코 서버를 작성할때 아래와 같은 코드가 될것이다.
-```
+```javascript
 const http = require('http');
 
 http.createServer((request, response) => {
