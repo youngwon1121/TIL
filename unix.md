@@ -12,12 +12,42 @@ shell이 execvp또는 execlp 사용했을때 첫번째 인자로 a.out을 주게
 
 
 
+### signal
+
+컴퓨터구조론 배울때 interrupt handler에 대해 다룬적이 있다.
+
+CPU는 매 명령어를 실행한 후 인터럽트가 있는지 체크하고 인터럽트가 발생했으면 Interrupt Handler를 실행시킨다는 내용이었다.
+
+terminal에서 무심코 누르는 컨트롤z나 컨트롤c가 바로 signal(interrupt)였던것이다.
+
+```c
+int main() {
+	struct sigaction act;
+	act.sa_handler = catchint;
+	sigaction(SIGUSR1, &act, NULL);
+  
+  act.sa_handler= SIGIGN;
+  sigaction(SIGINT, &act, NULL);
+  
+  act.sa_handler= SIGDFL;
+  sigaction(SIGINT, &act, NULL);
+}
+```
+
+
+
+
+
 ## 목차
 
 1. [Memory Mapping](#1. Memory-Mapping)
    1. [프로세스 동기화](#프로세스-동기화)
 2. PIPE
 3. FIFO
+4. Message Queue
+5. Semaphore
+6. SharedMemory
+7. Lock
 
 ---
 
@@ -33,8 +63,6 @@ Memory Mapping시 파일의 모든 부분을 다 mapping할 필요는 없으니 
 
 이때 offset사이즈는 페이지의 크기와 동일해야한다고 한다.
 
-
-
 이게 뭔소릴까? 
 
 우리 컴퓨터는 물리메모리보다 큰 용량의 프로세스를 실행하기 위해 **가상 메모리**를 사용한다.
@@ -49,7 +77,7 @@ Memory Mapping시 파일의 모든 부분을 다 mapping할 필요는 없으니 
 
 운영체제 배울때 프로세스 동기화에 대해 직관적인 이해가 잘 되지 않았었다.
 
-Memory Mapping에 대한 예제코드를 보다가 이해가 되었다.
+Memory Mapping에 대한 예제코드를 보다가 이해가 되어 첨부한다.
 
 ### 1.1.1. 동기화 되지 않는 경우
 
@@ -179,11 +207,181 @@ void catchsig(int signo){
 
 
 
+메모리맵핑은 실제 disk의 파일의 일정부분을  프로세스의 영역에 맵핑해오는 것이다. 
+
+(그래서 IPC의 목적으로 메모리맵핑을 사용한다면 ftruncate나 truncate 함수로 사용할 크기를 미리 확보해주어야한다.)
+
+그러므로 해당 영역에 쓰고지우는게 실제 파일에 저장된다. 
+
+
+
+## 2. PIPE
+
+프로세스 간, 단방향 통신이 가능하다..
+
+```c
+//파이프의 생성
+int main() {
+	int fd[2];
+	pipe(fd);
+}
+```
+
+- fd[0] : 읽기용
+- fd[1] : 쓰기용
+
+
+
+##### 특징
+
+- blocking read, write
+- 한 파이프에 대해 reader가 여러명일수있다.
+
+부모 Process가 한파이프에  1, 2, 3, 4, 5를 write하고
+
+자식 프로세스 5개에서 각자 한번씩 read 하면
+
+자식들중 누군가가 처음 read할때 1, 그다음이 2, 3, 4, 5를 가져가는 식이다.
+
+- Writer가 없는경우, read를 기다리는 Reader들에게는 0을 리턴,  Reader가 없는경우, writer들은 SIGPIPE signal을 받는다.
 
 
 
 
 
+## 3. FIFO
+
+```#include <stdio.h>```
+
+```c
+//FIFO생성
+int main() {
+	int p[2];
+	mkfifo(p, 0666);
+	open();
+}
+```
+
+## 4. Message Queue
+
+message queue는 pipe와는 다르게 양방향이다.
+
+- PIPE, FIFO는 read(), write()함수를 사용함. 그러나 메세지큐는 msgsnd(), msgrcv()사용.
+
+그러나 pipe와 마찬가지로 쓰인 데이터는 한번만 읽히고 사라진다.
+
+```
+//Message Queue생성
+int main() {
+	key = ftok()
+	qid = msgget(key, IPC_CREAT|0666);
+	
+	//msg send
+	
+	msgsnd(qid,buf, size);
+	msgrcv(qid, buf, size, 0);
+	
+	//msg rcv
+}
+```
 
 
 
+
+
+## 5. Semaphore
+
+세마포어 코드를 작성하다보면 몇개의 세마포어가 필요한건지 정해야한다.
+
+이때 필요한 세마포어의 갯수는 <b>대기가 필요한 상황의 갯수</b> 이다.
+
+```c
+int main() {
+	semid = semget(key, 2, 0600|IPC_CREAT|IPC_EXCL);
+
+  if(semid == -1) {
+    semget(key,2,0 );
+  } else {
+    arg.buf =buf;
+    semctl(semid,  0, SETALL, arg);
+  }
+}
+```
+
+
+
+## 6. SharedMemory
+
+공유메모리는 여러프로세스에서 접근할수 있도록 메모리에 공간을 할당하는것이다.
+
+메모리에 일정한 size만큼의 공간을 할당한다.
+
+여러프로세스간의 정보를 전달하기에는 가장 적합한 방식이다.
+
+```c
+int main () {
+		key2=ftok("key", 23);
+    // 공유메모리 생성 및 초기화
+    shmid = shmget(key2, sizeof (int) * 10, 0600|IPC_CREAT);
+    buf = (int*)shmat(shmid, 0, 0);
+}
+```
+
+
+
+#### Memory Mapping과 SharedMemory 의 차이점
+
+Memory Mapping은 file의 일부분을 <b>프로세스 내 </b>공간에 할당하는것이다.
+
+반면 SharedMemory는 프로세스와 독립적인 메모리영역에 여러 프로세스가 접근할수있는 메모리를 할당하는것이다.
+
+그림으로 보자.
+
+
+
+![1](/Users/user/Workspace/TIL/IMG/1.png)
+
+Shared Memory
+
+
+
+![2](/Users/user/Workspace/TIL/IMG/2.png)
+
+Memory Mappings
+
+
+
+## 7. LOCK
+
+file descripter의 일정부분을 락을 설정할수 있다.
+
+하지만 lock을 건다고 다른프로세스에서 접근할수 없는것은 아니다.
+
+만약 다른 프로세스에서 lock없이 해당 자원에 접근해 수정한다면 수정이 된다.
+
+그러므로 동시접근을 막기위해서는 꼭 접근하는 모든부분에서 lock을 통한 접근제어가 이뤄져야한다.
+
+lock type
+
+- F_WRLCK
+
+- F_RDLCK
+
+- F_UNLCK
+
+F_SETLK
+
+F_SETLKW : 리턴값이 -1이면 deadlock detecting
+
+
+
+```c
+int main() {
+  struct flock lock;
+  lock.l_type = F_RDLCK;
+  lock.l_whence = SEEK_CUR;
+  lock.l_start = 0;
+  lock.l_len = sizeof(int);
+  fcntl(fd, F_SETLKW, &lock);
+}
+```
